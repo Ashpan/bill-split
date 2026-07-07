@@ -1,23 +1,27 @@
 # Stage 1: Build frontend
 FROM node:20-alpine AS frontend-build
 WORKDIR /frontend
-COPY frontend/package*.json ./
-RUN npm ci
+RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
+COPY frontend/package.json frontend/pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile
 COPY frontend/ ./
-RUN npm run build
+RUN pnpm run build
 
 # Stage 2: Build backend
 FROM node:20-alpine AS backend-build
 WORKDIR /backend
-COPY backend/package*.json ./
-RUN npm ci
+RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
+COPY backend/package.json backend/pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile
 COPY backend/ ./
-RUN npx prisma generate
-RUN npm run build
+RUN pnpm exec prisma generate
+RUN pnpm run build
 
 # Stage 3: Production image
 FROM node:20-alpine AS production
 WORKDIR /app
+
+RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
 
 # Copy backend build + dependencies
 COPY --from=backend-build /backend/dist ./dist
@@ -33,4 +37,4 @@ RUN mkdir -p /app/uploads
 
 EXPOSE 3000
 
-CMD ["sh", "-c", "npx prisma migrate deploy && node dist/index.js"]
+CMD ["sh", "-c", "node_modules/.bin/prisma migrate deploy && node dist/index.js"]

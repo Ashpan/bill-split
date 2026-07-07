@@ -9,6 +9,7 @@
     "db:migrate": "prisma migrate deploy",
     "db:studio": "prisma studio"
   },
+  "packageManager": "pnpm@9.15.0",
   "dependencies": {
     "@prisma/client": "^5.22.0",
     "cors": "^2.8.5",
