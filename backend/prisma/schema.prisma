@@ -1,0 +1,71 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Bill {
+  id          String    @id @default(cuid())
+  name        String
+  description String?
+  receiptPath String?
+  tipType     String?   // "PERCENT" | "AMOUNT" | null
+  tipValue    Float?
+  taxType     String?   // "PERCENT" | "AMOUNT" | null
+  taxValue    Float?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  people      Person[]
+  items       Item[]
+  payments    Payment[]
+}
+
+model Person {
+  id       String      @id @default(cuid())
+  billId   String
+  name     String
+  bill     Bill        @relation(fields: [billId], references: [id], onDelete: Cascade)
+  splits   ItemSplit[]
+  payments Payment[]
+}
+
+model Item {
+  id          String      @id @default(cuid())
+  billId      String
+  name        String
+  amount      Float
+  description String?
+  bill        Bill        @relation(fields: [billId], references: [id], onDelete: Cascade)
+  splits      ItemSplit[]
+}
+
+model ItemSplit {
+  id        String    @id @default(cuid())
+  itemId    String
+  personId  String
+  splitType SplitType @default(EVEN)
+  value     Float?
+  item      Item      @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  person    Person    @relation(fields: [personId], references: [id], onDelete: Cascade)
+
+  @@unique([itemId, personId])
+}
+
+enum SplitType {
+  EVEN
+  PERCENT
+  AMOUNT
+}
+
+model Payment {
+  id       String  @id @default(cuid())
+  billId   String
+  personId String
+  amount   Float
+  note     String?
+  bill     Bill    @relation(fields: [billId], references: [id], onDelete: Cascade)
+  person   Person  @relation(fields: [personId], references: [id], onDelete: Cascade)
+}
