@@ -10,6 +10,7 @@ RUN pnpm run build
 # Stage 2: Build backend
 FROM node:20-alpine AS backend-build
 WORKDIR /backend
+RUN apk add --no-cache openssl
 RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
 COPY backend/package.json backend/pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile
