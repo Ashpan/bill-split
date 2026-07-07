@@ -1,11 +1,11 @@
-import { Router, Request, Response } from "express";
+import express, { Request, Response, Router } from "express";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
 import prisma from "../lib/prisma";
 import { calculate } from "../lib/calculate";
 
-const router = Router();
+const router: Router = express.Router();
 
 const storage = multer.diskStorage({
   destination: (_req, _file, cb) => {
@@ -67,15 +67,14 @@ router.post("/", async (req: Request, res: Response) => {
 
 // GET /api/bills/:id
 router.get("/:id", async (req: Request, res: Response) => {
+  const id = req.params["id"] as string;
   const bill = await prisma.bill.findUnique({
-    where: { id: req.params.id },
+    where: { id },
     include: {
       people: { orderBy: { name: "asc" } },
       items: {
         orderBy: { name: "asc" },
-        include: {
-          splits: { include: { person: true } },
-        },
+        include: { splits: { include: { person: true } } },
       },
       payments: {
         orderBy: { amount: "desc" },
@@ -93,6 +92,7 @@ router.get("/:id", async (req: Request, res: Response) => {
 
 // PATCH /api/bills/:id
 router.patch("/:id", async (req: Request, res: Response) => {
+  const id = req.params["id"] as string;
   const { name, description, tipType, tipValue, taxType, taxValue } = req.body;
   const data: Record<string, unknown> = {};
   if (name !== undefined) data.name = name.trim();
@@ -102,55 +102,46 @@ router.patch("/:id", async (req: Request, res: Response) => {
   if (taxType !== undefined) data.taxType = taxType ?? null;
   if (taxValue !== undefined) data.taxValue = taxValue != null ? parseFloat(taxValue) : null;
 
-  const bill = await prisma.bill.update({
-    where: { id: req.params.id },
-    data,
-  });
+  const bill = await prisma.bill.update({ where: { id }, data });
   res.json(bill);
 });
 
 // DELETE /api/bills/:id
 router.delete("/:id", async (req: Request, res: Response) => {
-  await prisma.bill.delete({ where: { id: req.params.id } });
+  const id = req.params["id"] as string;
+  await prisma.bill.delete({ where: { id } });
   res.status(204).send();
 });
 
 // POST /api/bills/:id/receipt
-router.post(
-  "/:id/receipt",
-  upload.single("receipt"),
-  async (req: Request, res: Response) => {
-    if (!req.file) {
-      res.status(400).json({ error: "No file uploaded" });
-      return;
-    }
-
-    const bill = await prisma.bill.findUnique({ where: { id: req.params.id } });
-    if (!bill) {
-      res.status(404).json({ error: "Bill not found" });
-      return;
-    }
-
-    // Remove old receipt if exists
-    if (bill.receiptPath) {
-      const uploadDir = process.env.UPLOAD_DIR ?? "/app/uploads";
-      const oldPath = path.join(uploadDir, path.basename(bill.receiptPath));
-      fs.rm(oldPath, () => {});
-    }
-
-    const receiptPath = `/uploads/${req.file.filename}`;
-    const updated = await prisma.bill.update({
-      where: { id: req.params.id },
-      data: { receiptPath },
-    });
-
-    res.json({ receiptPath: updated.receiptPath });
+router.post("/:id/receipt", upload.single("receipt"), async (req: Request, res: Response) => {
+  const id = req.params["id"] as string;
+  if (!req.file) {
+    res.status(400).json({ error: "No file uploaded" });
+    return;
   }
-);
+
+  const bill = await prisma.bill.findUnique({ where: { id } });
+  if (!bill) {
+    res.status(404).json({ error: "Bill not found" });
+    return;
+  }
+
+  if (bill.receiptPath) {
+    const uploadDir = process.env.UPLOAD_DIR ?? "/app/uploads";
+    const oldPath = path.join(uploadDir, path.basename(bill.receiptPath));
+    fs.rm(oldPath, () => {});
+  }
+
+  const receiptPath = `/uploads/${req.file.filename}`;
+  const updated = await prisma.bill.update({ where: { id }, data: { receiptPath } });
+  res.json({ receiptPath: updated.receiptPath });
+});
 
 // DELETE /api/bills/:id/receipt
 router.delete("/:id/receipt", async (req: Request, res: Response) => {
-  const bill = await prisma.bill.findUnique({ where: { id: req.params.id } });
+  const id = req.params["id"] as string;
+  const bill = await prisma.bill.findUnique({ where: { id } });
   if (!bill) {
     res.status(404).json({ error: "Bill not found" });
     return;
@@ -160,17 +151,15 @@ router.delete("/:id/receipt", async (req: Request, res: Response) => {
     const oldPath = path.join(uploadDir, path.basename(bill.receiptPath));
     fs.rm(oldPath, () => {});
   }
-  const updated = await prisma.bill.update({
-    where: { id: req.params.id },
-    data: { receiptPath: null },
-  });
+  const updated = await prisma.bill.update({ where: { id }, data: { receiptPath: null } });
   res.json(updated);
 });
 
 // GET /api/bills/:id/calculate
 router.get("/:id/calculate", async (req: Request, res: Response) => {
+  const id = req.params["id"] as string;
   const bill = await prisma.bill.findUnique({
-    where: { id: req.params.id },
+    where: { id },
     include: {
       people: true,
       items: { include: { splits: { include: { person: true } } } },
@@ -183,31 +172,31 @@ router.get("/:id/calculate", async (req: Request, res: Response) => {
     return;
   }
 
-  const result = calculate(bill);
-  res.json(result);
+  res.json(calculate(bill));
 });
 
 // POST /api/bills/:id/people
 router.post("/:id/people", async (req: Request, res: Response) => {
+  const billId = req.params["id"] as string;
   const { name } = req.body;
   if (!name?.trim()) {
     res.status(400).json({ error: "Name is required" });
     return;
   }
-  const person = await prisma.person.create({
-    data: { billId: req.params.id, name: name.trim() },
-  });
+  const person = await prisma.person.create({ data: { billId, name: name.trim() } });
   res.status(201).json(person);
 });
 
 // DELETE /api/bills/:billId/people/:personId
 router.delete("/:billId/people/:personId", async (req: Request, res: Response) => {
-  await prisma.person.delete({ where: { id: req.params.personId } });
+  const personId = req.params["personId"] as string;
+  await prisma.person.delete({ where: { id: personId } });
   res.status(204).send();
 });
 
 // POST /api/bills/:id/items
 router.post("/:id/items", async (req: Request, res: Response) => {
+  const billId = req.params["id"] as string;
   const { name, amount, description } = req.body;
   if (!name?.trim()) {
     res.status(400).json({ error: "Name is required" });
@@ -219,12 +208,7 @@ router.post("/:id/items", async (req: Request, res: Response) => {
     return;
   }
   const item = await prisma.item.create({
-    data: {
-      billId: req.params.id,
-      name: name.trim(),
-      amount: parsedAmount,
-      description: description?.trim() ?? null,
-    },
+    data: { billId, name: name.trim(), amount: parsedAmount, description: description?.trim() ?? null },
     include: { splits: { include: { person: true } } },
   });
   res.status(201).json(item);
@@ -232,6 +216,7 @@ router.post("/:id/items", async (req: Request, res: Response) => {
 
 // PATCH /api/bills/:billId/items/:itemId
 router.patch("/:billId/items/:itemId", async (req: Request, res: Response) => {
+  const itemId = req.params["itemId"] as string;
   const { name, amount, description } = req.body;
   const data: Record<string, unknown> = {};
   if (name !== undefined) data.name = name.trim();
@@ -246,7 +231,7 @@ router.patch("/:billId/items/:itemId", async (req: Request, res: Response) => {
   if (description !== undefined) data.description = description?.trim() ?? null;
 
   const item = await prisma.item.update({
-    where: { id: req.params.itemId },
+    where: { id: itemId },
     data,
     include: { splits: { include: { person: true } } },
   });
@@ -255,19 +240,16 @@ router.patch("/:billId/items/:itemId", async (req: Request, res: Response) => {
 
 // DELETE /api/bills/:billId/items/:itemId
 router.delete("/:billId/items/:itemId", async (req: Request, res: Response) => {
-  await prisma.item.delete({ where: { id: req.params.itemId } });
+  const itemId = req.params["itemId"] as string;
+  await prisma.item.delete({ where: { id: itemId } });
   res.status(204).send();
 });
 
 // PUT /api/bills/:billId/items/:itemId/splits
-// Replaces all splits for an item
 router.put("/:billId/items/:itemId/splits", async (req: Request, res: Response) => {
+  const itemId = req.params["itemId"] as string;
   const { splits } = req.body as {
-    splits: Array<{
-      personId: string;
-      splitType: "EVEN" | "PERCENT" | "AMOUNT";
-      value?: number;
-    }>;
+    splits: Array<{ personId: string; splitType: "EVEN" | "PERCENT" | "AMOUNT"; value?: number }>;
   };
 
   if (!Array.isArray(splits)) {
@@ -275,12 +257,11 @@ router.put("/:billId/items/:itemId/splits", async (req: Request, res: Response) 
     return;
   }
 
-  // Delete existing splits, then create new ones
   await prisma.$transaction([
-    prisma.itemSplit.deleteMany({ where: { itemId: req.params.itemId } }),
+    prisma.itemSplit.deleteMany({ where: { itemId } }),
     prisma.itemSplit.createMany({
       data: splits.map((s) => ({
-        itemId: req.params.itemId,
+        itemId,
         personId: s.personId,
         splitType: s.splitType,
         value: s.value ?? null,
@@ -289,7 +270,7 @@ router.put("/:billId/items/:itemId/splits", async (req: Request, res: Response) 
   ]);
 
   const item = await prisma.item.findUnique({
-    where: { id: req.params.itemId },
+    where: { id: itemId },
     include: { splits: { include: { person: true } } },
   });
   res.json(item);
@@ -297,6 +278,7 @@ router.put("/:billId/items/:itemId/splits", async (req: Request, res: Response) 
 
 // POST /api/bills/:id/payments
 router.post("/:id/payments", async (req: Request, res: Response) => {
+  const billId = req.params["id"] as string;
   const { personId, amount, note } = req.body;
   if (!personId) {
     res.status(400).json({ error: "personId is required" });
@@ -308,12 +290,7 @@ router.post("/:id/payments", async (req: Request, res: Response) => {
     return;
   }
   const payment = await prisma.payment.create({
-    data: {
-      billId: req.params.id,
-      personId,
-      amount: parsedAmount,
-      note: note?.trim() ?? null,
-    },
+    data: { billId, personId, amount: parsedAmount, note: note?.trim() ?? null },
     include: { person: true },
   });
   res.status(201).json(payment);
@@ -321,7 +298,8 @@ router.post("/:id/payments", async (req: Request, res: Response) => {
 
 // DELETE /api/bills/:billId/payments/:paymentId
 router.delete("/:billId/payments/:paymentId", async (req: Request, res: Response) => {
-  await prisma.payment.delete({ where: { id: req.params.paymentId } });
+  const paymentId = req.params["paymentId"] as string;
+  await prisma.payment.delete({ where: { id: paymentId } });
   res.status(204).send();
 });
 
