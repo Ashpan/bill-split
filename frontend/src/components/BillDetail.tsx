@@ -186,17 +186,18 @@ function TipTaxEditor({ bill }: { bill: any }) {
 
   const totalItems = bill.items.reduce((s: number, i: any) => s + i.amount, 0);
 
-  const computedTip =
-    tipValue && tipType === "PERCENT"
-      ? totalItems * (parseFloat(tipValue) / 100)
-      : tipValue
-      ? parseFloat(tipValue)
-      : 0;
   const computedTax =
     taxValue && taxType === "PERCENT"
       ? totalItems * (parseFloat(taxValue) / 100)
       : taxValue
       ? parseFloat(taxValue)
+      : 0;
+  const postTax = totalItems + computedTax;
+  const computedTip =
+    tipValue && tipType === "PERCENT"
+      ? postTax * (parseFloat(tipValue) / 100)
+      : tipValue
+      ? parseFloat(tipValue)
       : 0;
 
   return (
@@ -204,20 +205,22 @@ function TipTaxEditor({ bill }: { bill: any }) {
       <h3 className="font-semibold text-gray-900 mb-4">Tip & Tax</h3>
       <div className="grid sm:grid-cols-2 gap-4">
         <AddOnRow
-          label="Tip"
-          type={tipType}
-          value={tipValue}
-          computed={computedTip}
-          onTypeChange={setTipType}
-          onValueChange={setTipValue}
-        />
-        <AddOnRow
           label="Tax"
           type={taxType}
           value={taxValue}
           computed={computedTax}
           onTypeChange={setTaxType}
           onValueChange={setTaxValue}
+          baseAmount={totalItems}
+        />
+        <AddOnRow
+          label="Tip (on post-tax)"
+          type={tipType}
+          value={tipValue}
+          computed={computedTip}
+          onTypeChange={setTipType}
+          onValueChange={setTipValue}
+          baseAmount={totalItems + computedTax}
         />
       </div>
       <div className="mt-4 flex items-center gap-3">
@@ -250,6 +253,7 @@ function AddOnRow({
   type,
   value,
   computed,
+  baseAmount,
   onTypeChange,
   onValueChange,
 }: {
@@ -257,6 +261,7 @@ function AddOnRow({
   type: string;
   value: string;
   computed: number;
+  baseAmount: number;
   onTypeChange: (v: string) => void;
   onValueChange: (v: string) => void;
 }) {
@@ -285,6 +290,7 @@ function AddOnRow({
       {value && (
         <p className="text-xs text-gray-400 mt-1">
           = ${computed.toFixed(2)}
+          {type === "PERCENT" && <span className="ml-1">(on ${baseAmount.toFixed(2)})</span>}
         </p>
       )}
     </div>

@@ -92,24 +92,26 @@ export function calculate(bill: FullBill): CalculationResult {
     });
   }
 
-  // Compute tip and tax totals
-  const totalTip = computeAddOn(bill.tipType, bill.tipValue, totalItems);
+  // Tax on items, tip on post-tax total
   const totalTax = computeAddOn(bill.taxType, bill.taxValue, totalItems);
-  const totalBill = totalItems + totalTip + totalTax;
+  const totalTip = computeAddOn(bill.tipType, bill.tipValue, totalItems + totalTax);
+  const totalBill = totalItems + totalTax + totalTip;
 
-  // Distribute tip and tax proportionally based on each person's item share
+  // Distribute tax proportionally based on item share; tip on post-tax share
   const tipTaxOwedMap = new Map<string, { tip: number; tax: number }>();
   for (const person of bill.people) {
     tipTaxOwedMap.set(person.id, { tip: 0, tax: 0 });
   }
 
-  if (totalItems > 0 && (totalTip > 0 || totalTax > 0)) {
+  if (totalItems > 0) {
     for (const [personId, itemsOwed] of itemsOwedMap.entries()) {
-      const fraction = itemsOwed / totalItems;
-      tipTaxOwedMap.set(personId, {
-        tip: totalTip * fraction,
-        tax: totalTax * fraction,
-      });
+      const itemFraction = itemsOwed / totalItems;
+      const personTax = totalTax * itemFraction;
+      const postTaxShare = itemsOwed + personTax;
+      const postTaxTotal = totalItems + totalTax;
+      const tipFraction = postTaxTotal > 0 ? postTaxShare / postTaxTotal : 0;
+      const personTip = totalTip * tipFraction;
+      tipTaxOwedMap.set(personId, { tip: personTip, tax: personTax });
     }
   }
 
